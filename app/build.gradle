@@ -1,5 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
+    // EL PLUGIN DE FIREBASE VA AQUÍ (NO abajo):
+    id 'com.google.gms.google-services'
 }
 
 android {
@@ -9,7 +11,7 @@ android {
     defaultConfig {
         applicationId "com.example.supermercadoiot"
         minSdk 24
-        targetSdk 33 // Mantenemos 33 para evitar el crash de seguridad de Android 14
+        targetSdk 33 // Mantenemos 33 para evitar problemas de seguridad
         versionCode 1
         versionName "1.0"
 
@@ -29,7 +31,7 @@ android {
 }
 
 dependencies {
-    // Librerías por defecto del sistema
+    // --- LIBRERÍAS DEL SISTEMA ---
     implementation libs.appcompat
     implementation libs.material
     implementation libs.constraintlayout
@@ -37,13 +39,18 @@ dependencies {
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core
 
-    // --- CORRECCIÓN CRÍTICA ---
-    // Forzamos una versión estable de 'activity' para evitar el error de "API 36"
+    // --- CORRECCIONES Y UTILIDADES ---
+    // Forzamos version 1.9.0 para evitar el error de "API 36"
     implementation 'androidx.activity:activity:1.9.0'
+    // Gson para manejar JSON
+    implementation 'com.google.code.gson:gson:2.10.1'
 
-    // Cliente MQTT (Versión compatible con Android moderno)
+    // --- IOT: MQTT (HIVEMQ) ---
     implementation 'com.github.hannesa2:paho.mqtt.android:3.3.5'
 
-    // Gson (Para JSON)
-    implementation 'com.google.code.gson:gson:2.10.1'
+    // --- IOT: FIREBASE ---
+    // Importamos la plataforma (BOM) para que maneje las versiones
+    implementation platform('com.google.firebase:firebase-bom:32.7.4')
+    // Importamos la base de datos
+    implementation 'com.google.firebase:firebase-database'
 }

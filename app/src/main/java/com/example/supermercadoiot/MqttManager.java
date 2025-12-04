@@ -15,13 +15,13 @@ public class MqttManager {
     private MqttClient cliente;
     private InterfaceMqtt callback;
 
-    // -----------------------------------------------------------
-    // CONFIGURACIÓN DE HIVEMQ CLOUD (¡PON TUS DATOS AQUÍ!)
-    // -----------------------------------------------------------
+    // --- CREDENCIALES HIVEMQ CLOUD
     private static final String SERVER_URI = "ssl://ff8c68175d2c46d29a6021a7123f122d.s1.eu.hivemq.cloud:8883";
     private static final String USERNAME = "JoseNeira";
     private static final String PASSWORD = "Jose123.";
-    // -----------------------------------------------------------
+
+    // Tópico raíz para suscribirse a todo
+    private static final String TOPIC_WILDCARD = "supermercado/sucursal1/caja01/#";
 
     public MqttManager(Context context, InterfaceMqtt callback) {
         this.callback = callback;
@@ -30,7 +30,10 @@ public class MqttManager {
     public void conectar() {
         new Thread(() -> {
             try {
-                String clientId = "Android_" + System.currentTimeMillis();
+
+                String clientId = "AndroidHybrid_" + System.currentTimeMillis();
+
+
                 cliente = new MqttClient(SERVER_URI, clientId, new MemoryPersistence());
 
                 MqttConnectOptions opciones = new MqttConnectOptions();
@@ -43,14 +46,14 @@ public class MqttManager {
                 cliente.setCallback(new MqttCallback() {
                     @Override
                     public void connectionLost(Throwable cause) {
-                        Log.e("MQTT", "Conexión perdida");
+                        Log.e("MQTT", "Conexión Perdida: " + cause.getMessage());
                         callback.alCambiarEstado(false);
                     }
 
                     @Override
                     public void messageArrived(String topic, MqttMessage message) {
                         String payload = new String(message.getPayload());
-                        Log.d("MQTT", "Mensaje: " + payload);
+                        Log.d("MQTT", "Llegó mensaje en [" + topic + "]: " + payload);
                         callback.alRecibirMensaje(topic, payload);
                     }
 
@@ -58,41 +61,32 @@ public class MqttManager {
                     public void deliveryComplete(IMqttDeliveryToken token) {}
                 });
 
+                Log.i("MQTT", "Intentando conectar a HiveMQ...");
                 cliente.connect(opciones);
                 Log.i("MQTT", "¡Conectado!");
-                callback.alCambiarEstado(true);
 
-                // Suscripción automática inicial
-                suscribirse("supermercado/sucursal1/caja01/#");
+                // Nos suscribimos inmediatamente para escuchar los comandos
+                cliente.subscribe(TOPIC_WILDCARD, 0);
+
+                callback.alCambiarEstado(true);
 
             } catch (Exception e) {
                 e.printStackTrace();
-                Log.e("MQTT", "Error conectando: " + e.getMessage());
+                Log.e("MQTT", "ERROR CRÍTICO AL CONECTAR: " + e.getMessage());
                 callback.alCambiarEstado(false);
             }
         }).start();
     }
 
-    // --- ESTE ES EL MÉTODO QUE TE FALTABA ---
-    public void suscribirse(String topic) {
+    public void publicar(String topic, String mensaje) {
         new Thread(() -> {
             try {
                 if (cliente != null && cliente.isConnected()) {
-                    cliente.subscribe(topic, 0);
-                    Log.i("MQTT", "Suscrito a: " + topic);
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }).start();
-    }
-
-    public void publicar(String topic, String mensajeJSON) {
-        new Thread(() -> {
-            try {
-                if (cliente != null && cliente.isConnected()) {
-                    MqttMessage message = new MqttMessage(mensajeJSON.getBytes(StandardCharsets.UTF_8));
+                    MqttMessage message = new MqttMessage(mensaje.getBytes(StandardCharsets.UTF_8));
                     cliente.publish(topic, message);
+                    Log.i("MQTT", "Enviado: " + mensaje);
+                } else {
+                    Log.w("MQTT", "No se pudo enviar, cliente desconectado.");
                 }
             } catch (Exception e) {
                 e.printStackTrace();

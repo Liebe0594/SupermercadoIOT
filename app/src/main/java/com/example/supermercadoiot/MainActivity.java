@@ -2,6 +2,7 @@ package com.example.supermercadoiot;
 
 import android.graphics.Color;
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
@@ -13,128 +14,123 @@ import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements InterfaceMqtt {
 
-    private MqttManager mqttManager;
+    // --- LOS DOS MOTORES ---
+    private FirebaseManager firebaseManager; // Para datos (Carrito)
+    private MqttManager mqttManager;         // Para comandos (Sistema)
+
     private TextView lblEstado;
     private RecyclerView recycler;
     private ProductoAdapter adapter;
     private Gson gson = new Gson();
-
-    // 1. MEMORIA DE LA CAJA (Lista local)
     private List<Producto> listaSimulada = new ArrayList<>();
 
-    // Tópicos MQTT
-    private static final String TOPIC_CARRITO = "supermercado/sucursal1/caja01/carrito";
-    private static final String TOPIC_ESTADO = "supermercado/sucursal1/caja01/estado";
+    // RUTAS Y TÓPICOS
+    // Firebase usa nombres cortos (nodos)
+    private static final String NODO_CARRITO = "carrito";
+    private static final String NODO_ESTADO = "estado";
+
+    // MQTT usa rutas largas
+    private static final String TOPIC_SISTEMA = "supermercado/sucursal1/caja01/sistema";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // 1. Configurar Interfaz (UI)
         lblEstado = findViewById(R.id.lblEstado);
         recycler = findViewById(R.id.recyclerProductos);
         recycler.setLayoutManager(new LinearLayoutManager(this));
         adapter = new ProductoAdapter();
         recycler.setAdapter(adapter);
 
-        // 2. Iniciar MQTT
+        // 1. INICIAR FIREBASE
+        firebaseManager = new FirebaseManager(this);
+        firebaseManager.conectar();
+
+        // 2. INICIAR MQTT (HiveMQ)
         mqttManager = new MqttManager(getApplicationContext(), this);
         mqttManager.conectar();
 
-        // 3. Configurar Botones
         configurarBotones();
     }
 
     private void configurarBotones() {
-        // --- BOTÓN 1: SIMULAR ESCANEO (AÑADIR) ---
+        // --- BOTONES DE PRODUCTOS (Usan FIREBASE) ---
         findViewById(R.id.btnAddTest).setOnClickListener(v -> {
-            // Creamos un producto aleatorio
             int idAzar = (int)(Math.random() * 1000);
-            int precioAzar = (int)(Math.random() * 5000) + 500;
-            Producto nuevoProd = new Producto(String.valueOf(idAzar), "Producto #" + idAzar, precioAzar);
-
-            // Agregamos a memoria y enviamos
-            listaSimulada.add(nuevoProd);
-            enviarListaActualizada();
+            Producto p = new Producto(String.valueOf(idAzar), "Prod Híbrido #" + idAzar, 1500);
+            listaSimulada.add(p);
+            guardarEnFirebase();
         });
 
-        // --- BOTÓN 2: BORRAR ÚLTIMO ---
         findViewById(R.id.btnDeleteLast).setOnClickListener(v -> {
             if (!listaSimulada.isEmpty()) {
                 listaSimulada.remove(listaSimulada.size() - 1);
-                enviarListaActualizada();
-            } else {
-                Toast.makeText(this, "Carrito vacío", Toast.LENGTH_SHORT).show();
+                guardarEnFirebase();
             }
         });
 
-        // --- BOTÓN 3: REINICIAR CAJA ---
+        // --- BOTONES DE SISTEMA (Usan MQTT - HiveMQ) ---
+
+        // REINICIAR
         findViewById(R.id.btnReboot).setOnClickListener(v -> {
-            mqttManager.publicar(TOPIC_ESTADO, "REINICIANDO");
-            // Al reiniciar, vaciamos la lista
+            // Enviamos señal rápida por MQTT
+            mqttManager.publicar(TOPIC_SISTEMA, "REBOOT");
+            // Limpiamos la base de datos localmente
             listaSimulada.clear();
-            enviarListaActualizada();
-            Toast.makeText(this, "Reiniciando sistema...", Toast.LENGTH_SHORT).show();
+            guardarEnFirebase();
+            Toast.makeText(this, "Enviando REBOOT a HiveMQ...", Toast.LENGTH_SHORT).show();
         });
 
-        // --- BOTÓN 4: APAGAR SISTEMA ---
+        // APAGAR
         findViewById(R.id.btnShutdown).setOnClickListener(v -> {
-            mqttManager.publicar(TOPIC_ESTADO, "CERRADO");
-            Toast.makeText(this, "Cerrando caja...", Toast.LENGTH_SHORT).show();
+            mqttManager.publicar(TOPIC_SISTEMA, "SHUTDOWN");
         });
 
-        // --- BOTÓN 5: ENCENDER CAJA (El Nuevo) ---
-        // Asegúrate de haber agregado el botón con id btnPowerOn en el XML
+        // ENCENDER
         findViewById(R.id.btnPowerOn).setOnClickListener(v -> {
-            mqttManager.publicar(TOPIC_ESTADO, "ONLINE");
-            // Al encender, empezamos limpios
-            listaSimulada.clear();
-            enviarListaActualizada();
-            Toast.makeText(this, "Iniciando sistema...", Toast.LENGTH_SHORT).show();
+            mqttManager.publicar(TOPIC_SISTEMA, "ONLINE");
         });
     }
 
-    // Método para convertir la lista a JSON y enviarla a MQTT
-    private void enviarListaActualizada() {
+    private void guardarEnFirebase() {
         CarritoPayload payload = new CarritoPayload();
         payload.items = listaSimulada;
-
-        String json = gson.toJson(payload);
-        mqttManager.publicar(TOPIC_CARRITO, json);
+        firebaseManager.guardar(NODO_CARRITO, payload);
     }
 
-    // --- MÉTODOS QUE RESPONDEN A MQTT ---
+    // --- ESCUCHA CENTRALIZADA (AQUI LLEGA TODO) ---
     @Override
-    public void alRecibirMensaje(String topic, String mensaje) {
+    public void alRecibirMensaje(String source, String mensaje) {
         runOnUiThread(() -> {
             try {
-                // CASO A: Llega lista de productos
-                if (topic.equals(TOPIC_CARRITO)) {
+                // A. ¿ES DEL CARRITO (FIREBASE)?
+                if (source.equals(NODO_CARRITO)) {
                     CarritoPayload carrito = gson.fromJson(mensaje, CarritoPayload.class);
                     if (carrito != null && carrito.getItems() != null) {
-                        listaSimulada = carrito.getItems(); // Sincronizamos memoria
+                        listaSimulada = carrito.getItems();
                         adapter.actualizarLista(listaSimulada);
                     } else {
-                        // Si llega null o vacío
                         listaSimulada = new ArrayList<>();
                         adapter.actualizarLista(listaSimulada);
                     }
                 }
 
-                // CASO B: Cambio de Estado (Luces)
-                if (topic.equals(TOPIC_ESTADO)) {
+                // B. ¿ES UN COMANDO DE SISTEMA (MQTT O FIREBASE)?
+                // Verificamos si el tópico contiene la palabra "sistema" o si viene del nodo "estado"
+                if (source.contains("sistema") || source.equals(NODO_ESTADO)) {
+                    Log.i("HYBRID", "Comando recibido: " + mensaje);
                     switch (mensaje) {
-                        case "REINICIANDO":
+                        case "REBOOT":
                             lblEstado.setText("REINICIANDO...");
                             lblEstado.setBackgroundColor(Color.parseColor("#FF9800")); // Naranja
                             break;
-                        case "CERRADO":
-                            lblEstado.setText("CAJA CERRADA");
+                        case "SHUTDOWN":
+                            lblEstado.setText("APAGADO (MQTT)");
                             lblEstado.setBackgroundColor(Color.parseColor("#D32F2F")); // Rojo
                             break;
                         case "ONLINE":
-                            lblEstado.setText("ONLINE");
+                            lblEstado.setText("SISTEMA ONLINE");
                             lblEstado.setBackgroundColor(Color.parseColor("#4CAF50")); // Verde
                             break;
                     }
@@ -148,21 +144,17 @@ public class MainActivity extends AppCompatActivity implements InterfaceMqtt {
 
     @Override
     public void alCambiarEstado(boolean conectado) {
+        // Este método lo llaman ambos managers, así que solo confirmamos visualmente
         runOnUiThread(() -> {
-            if (conectado) {
-                // Suscribirse a los tópicos de interés
-                mqttManager.suscribirse("supermercado/sucursal1/caja01/#");
-
-                lblEstado.setText("ONLINE");
+            if(conectado) {
+                // Si al menos uno conecta, mostramos verde.
+                // Idealmente podríamos tener dos indicadores, pero esto basta por ahora.
+                lblEstado.setText("CONECTADO (HÍBRIDO)");
                 lblEstado.setBackgroundColor(Color.parseColor("#4CAF50"));
-            } else {
-                lblEstado.setText("DESCONECTADO");
-                lblEstado.setBackgroundColor(Color.GRAY);
             }
         });
     }
 
-    // Clase auxiliar para que Gson entienda el formato { "items": [...] }
     private static class CarritoPayload {
         List<Producto> items;
         public List<Producto> getItems() { return items; }
