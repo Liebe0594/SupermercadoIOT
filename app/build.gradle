@@ -1,0 +1,49 @@
+plugins {
+    alias(libs.plugins.android.application)
+}
+
+android {
+    namespace 'com.example.supermercadoiot'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.example.supermercadoiot"
+        minSdk 24
+        targetSdk 33 // Mantenemos 33 para evitar el crash de seguridad de Android 14
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+}
+
+dependencies {
+    // Librerías por defecto del sistema
+    implementation libs.appcompat
+    implementation libs.material
+    implementation libs.constraintlayout
+    testImplementation libs.junit
+    androidTestImplementation libs.ext.junit
+    androidTestImplementation libs.espresso.core
+
+    // --- CORRECCIÓN CRÍTICA ---
+    // Forzamos una versión estable de 'activity' para evitar el error de "API 36"
+    implementation 'androidx.activity:activity:1.9.0'
+
+    // Cliente MQTT (Versión compatible con Android moderno)
+    implementation 'com.github.hannesa2:paho.mqtt.android:3.3.5'
+
+    // Gson (Para JSON)
+    implementation 'com.google.code.gson:gson:2.10.1'
+}

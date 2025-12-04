@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Caja Autoservicio #01"
+            android:textSize="22sp"
+            android:textStyle="bold"/>
+
+        <TextView
+            android:id="@+id/lblEstado"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="OFFLINE"
+            android:padding="8dp"
+            android:background="#FF5252"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"/>
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Carrito en tiempo real:"
+        android:layout_marginTop="20dp"/>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerProductos"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="10dp"
+        android:background="#EEEEEE"/>
+
+    <GridLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:columnCount="2"
+        android:layout_marginTop="10dp">
+
+        <Button
+            android:id="@+id/btnAddTest"
+            android:text="Simular Escaneo (+)"
+            android:layout_width="0dp"
+            android:layout_columnWeight="1"
+            android:layout_margin="4dp"/>
+
+        <Button
+            android:id="@+id/btnDeleteLast"
+            android:text="Borrar Último (-)"
+            android:layout_width="0dp"
+            android:layout_columnWeight="1"
+            android:layout_margin="4dp"/>
+
+        <Button
+            android:id="@+id/btnReboot"
+            android:text="REINICIAR CAJA"
+            android:backgroundTint="#FF9800"
+            android:layout_width="0dp"
+            android:layout_columnWeight="1"
+            android:layout_margin="4dp"/>
+
+        <Button
+            android:id="@+id/btnShutdown"
+            android:text="APAGAR SISTEMA"
+            android:backgroundTint="#D32F2F"
+            android:layout_width="0dp"
+            android:layout_columnWeight="1"
+            android:layout_margin="4dp"/>
+
+        <Button
+            android:id="@+id/btnPowerOn"
+            android:text="ENCENDER CAJA"
+            android:backgroundTint="#4CAF50"
+            android:layout_width="0dp"
+            android:layout_columnWeight="1"
+            android:layout_margin="4dp"/>
+    </GridLayout>
+
+</LinearLayout>
